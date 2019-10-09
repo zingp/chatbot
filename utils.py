@@ -26,11 +26,15 @@ def download_pretrained_model():
     return tempdir
 
 
-def get_dataset(tokenizer, dataset_path, dataset_cache=None):
+def get_dataset(tokenizer, dataset_path, dataset_file, dataset_cache=None):
     """ Get PERSONACHAT from S3 """
     dataset_path = dataset_path or PERSONACHAT_URL
     dataset_cache = dataset_cache + '_' + type(tokenizer).__name__  # Do avoid using GPT cache for GPT-2 and vice-versa
-    if dataset_cache and os.path.isfile(dataset_cache):
+
+    if os.path.isfile(dataset_file):
+        logger.info("Load tokenized dataset from cache at %s", dataset_file)
+        dataset = torch.load(dataset_file)
+    elif dataset_cache and os.path.isfile(dataset_cache):
         logger.info("Load tokenized dataset from cache at %s", dataset_cache)
         dataset = torch.load(dataset_cache)
     else:
@@ -51,11 +55,14 @@ def get_dataset(tokenizer, dataset_path, dataset_cache=None):
             torch.save(dataset, dataset_cache)
     return dataset
 
-def get_dataset_personalities(tokenizer, dataset_path, dataset_cache=None):
+def get_dataset_personalities(tokenizer, dataset_path, dataset_file, dataset_cache=None):
     """ Get personalities from PERSONACHAT """
     dataset_path = dataset_path or PERSONACHAT_URL
     dataset_cache = dataset_cache + '_' + type(tokenizer).__name__  # Do avoid using GPT cache for GPT-2 and vice-versa
-    if os.path.isfile(dataset_cache):
+    if os.path.isfile(dataset_file):
+        logger.info("Load tokenized dataset from file at %s", dataset_file)
+        personachat = torch.load(dataset_file)
+    elif os.path.isfile(dataset_cache):
         logger.info("Load tokenized dataset from cache at %s", dataset_cache)
         personachat = torch.load(dataset_cache)
     else:

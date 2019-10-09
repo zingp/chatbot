@@ -86,6 +86,7 @@ def sample_sequence(personality, history, tokenizer, model, args, current_output
 def run():
     parser = ArgumentParser()
     parser.add_argument("--dataset_path", type=str, default="", help="Path or url of the dataset. If empty download from S3.")
+    parser.add_argument("--dataset_file", type=str, default="", help="the dataset file. If empty download from S3.")
     parser.add_argument("--dataset_cache", type=str, default='./dataset_cache', help="Path or url of the dataset cache")
     parser.add_argument("--model", type=str, default="gpt", help="Model type (gpt or gpt2)")
     parser.add_argument("--model_checkpoint", type=str, default="", help="Path, url or short name of the model")
@@ -121,7 +122,7 @@ def run():
     add_special_tokens_(model, tokenizer)
 
     logger.info("Sample a personality")
-    personalities = get_dataset_personalities(tokenizer, args.dataset_path, args.dataset_cache)
+    personalities = get_dataset_personalities(tokenizer, args.dataset_path, args.dataset_file,  args.dataset_cache)
     personality = random.choice(personalities)
     logger.info("Selected personality: %s", tokenizer.decode(chain(*personality)))
 
