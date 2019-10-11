@@ -1,3 +1,4 @@
+import os
 import math
 import logging
 from pprint import pformat
@@ -13,7 +14,7 @@ from ignite.handlers import ModelCheckpoint
 from ignite.metrics import Accuracy, Loss, MetricsLambda, RunningAverage
 from ignite.contrib.handlers import ProgressBar, PiecewiseLinear
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, OutputHandler, OptimizerParamsHandler
-from pytorch_transformers import (AdamW, OpenAIGPTDoubleHeadsModel, OpenAIGPTTokenizer,
+from pytorch_transformers import (AdamW, OpenAIGPTDoubleHeadsModel, OpenAIGPTTokenizer, GPT2Config,
                                   GPT2DoubleHeadsModel, GPT2Tokenizer, WEIGHTS_NAME, CONFIG_NAME)
 
 from utils import get_dataset, make_logdir
@@ -121,6 +122,7 @@ def train():
     parser.add_argument("--dataset_file", type=str, default="", help="the dataset file. If empty download from S3.")
     parser.add_argument("--dataset_cache", type=str, default='./dataset_cache', help="Path or url of the dataset cache")
     parser.add_argument("--model_checkpoint", type=str, default="openai-gpt", help="Path, url or short name of the model")
+    parser.add_argument("--is_local_model", type=bool, default=False, help="If True, it will load model from local")
     parser.add_argument("--num_candidates", type=int, default=2, help="Number of candidates for training")
     parser.add_argument("--max_history", type=int, default=2, help="Number of previous exchanges to keep in history")
     parser.add_argument("--train_batch_size", type=int, default=4, help="Batch size for training")
@@ -149,14 +151,23 @@ def train():
         torch.cuda.set_device(args.local_rank)
         args.device = torch.device("cuda", args.local_rank)
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
+    if args.is_local_model:
+        vocab_file = os.path.join(args.model_checkpoint, "gpt2-vocab.json")
+        merges_file = os.path.join(args.model_checkpoint, "gpt2-merges.txt")
+        logger.info("Load vocab_file: {}, merges_file: {}".format(vocab_file, merges_file))
+        tokenizer = GPT2Tokenizer(vocab_file=vocab_file, merges_file=merges_file)
+        
+        config_file = os.path.join(args.model_checkpoint, "gpt2-config.json")
+        config = GPT2Config.from_json_file(json_file=config_file)
+        model = GPT2DoubleHeadsModel.from_pretrained(args.model_checkpoint, from_tf=False, config=config)
+    else:
+        logger.info("Prepare tokenizer, pretrained model and optimizer.")
+        tokenizer_class = GPT2Tokenizer if "gpt2" in args.model_checkpoint else OpenAIGPTTokenizer # cant use Autotokenizer because checkpoint could be a Path
+        tokenizer = tokenizer_class.from_pretrained(args.model_checkpoint)
 
-    logger.info("Prepare tokenizer, pretrained model and optimizer.")
-    tokenizer_class = GPT2Tokenizer if "gpt2" in args.model_checkpoint else OpenAIGPTTokenizer # cant use Autotokenizer because checkpoint could be a Path
-    tokenizer = tokenizer_class.from_pretrained(args.model_checkpoint)
+        model_class = GPT2DoubleHeadsModel if "gpt2" in args.model_checkpoint else OpenAIGPTDoubleHeadsModel
+        model = model_class.from_pretrained(args.model_checkpoint)
 
-
-    model_class = GPT2DoubleHeadsModel if "gpt2" in args.model_checkpoint else OpenAIGPTDoubleHeadsModel
-    model = model_class.from_pretrained(args.model_checkpoint)
     model.to(args.device)
     # Add special tokens if they are not already added
     add_special_tokens_(model, tokenizer)
